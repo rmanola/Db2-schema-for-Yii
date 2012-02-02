@@ -1,0 +1,177 @@
+Db2-schema-for-Yii Project
+
+This project has the goal of creating a fully functional 
+DB2 schema using the pdo_ibm driver for using in the Yii 
+PHP Framework.
+
+Release notes:
+
+	All of the files belonging to this project should be
+	inserted in the "framework" folder of an average Yii
+	instalation. These files were first created and tested
+	on a Yii 1.1.9 instalation, but with some little 
+	modificationsit should work with any most recent Yii
+	version.
+	
+Pre-Requisites:
+
+	In order to make this work you need to have previously 
+	installed and tested the db2_ibm pecl package, the DB2
+	IBM dataserver runtime client software:
+	http://www.db2dean.com/Previous/DB2Client.html
+	
+	An finally the pdo_ibm pecl package for php:
+	http://pecl.php.net/package/PDO_IBM
+	
+	You will need to compile it because only at compilation
+	time you can specify where your DB2 instance folder is.
+	So do like this:
+	
+	$> wget http://pecl.php.net/get/PDO_IBM-1.3.2.tgz
+	$> tar -zxvf PDO_IBM-1.3.2.tgz
+	$> cd PDO_IBM-1.3.2
+	$> phpize
+	$> ./configure --with-pdo-ibm=<path to your sqllibfolder>
+	$> make
+	$> sudo cp modules/pdo_ibm.so /usr/lib/php/modules/
+	
+	On the last command you need to make sure where the modules
+	folder of you php installation is located. After that you
+	have to include this module on you php.ini:
+	
+	extension=pdo_ibm.so
+	ibm_db2.instance_name=<NAME>
+	
+	On some installations the ibm_db2_instance_name command isn't
+	necessary, you need to test. You can check if the php modules
+	are correctly installed using the phpinfo() funcion inside any
+	php file. Don't forget to reload your webserver after changing
+	the config files.
+	
+	So to sum it up, the php module dependencies are like this:
+	pdo_ibm.so depends on ibm_db2.so
+	
+	If the ibm_db2.so php module isn't working, the pdo_ibm.so won't
+	work either. To help on the troubleshooting I will list php sample
+	codes here to show how to test both drivers.
+	
+Testing the DB2 PDO Driver (pdo_ibm.so):
+
+	You need to check if your pdo_ibm driver is working, I list below
+	a PHP example of how to do this:
+	
+		try {
+			$db = new PDO("ibm:DATABASE=$database;HOSTNAME=$ip", $user, $password);
+    
+   			 $queryStr = "SELECT * from <view_name>.<column_name> WHERE <attribute> = '<VALUE>'";
+   			 $res = $db->query($queryStr)->fetch(PDO::FETCH_ASSOC);
+    			print_r($res);
+   		 }
+		catch (PDOException $e)
+   		 {
+    			echo $e->getMessage();
+    		}	
+	
+Testing the DB2 IBM Driver (ibm_db2.so)
+
+	Using this driver you don't need to specify the ip address once you previously
+	configured it as a node using the DB2 CLI commands.
+
+	$connDb2  = db2_connect($database, $user, $password);
+	$queryStr = "SELECT * from <view_name>.<column_name> WHERE <attribute> = '<VALUE>'";
+	$queryDb2 =  db2_prepare($connDb2, $queryStr);
+	db2_execute($queryDb2);
+	$res2 = db2_fetch_assoc($queryDb2);
+	print_r($res);
+
+Configuring Yii files:
+
+	As I have used this with the "MultiActiveRecord Extension", the setup below is
+	intended to work with with that.
+
+
+	At config.php (on Components session):
+	
+		'db_test'=>array(
+			'connectionString' => 'ibm:hostname=<IP>;database=<DATABASE-NODE-NAME>',
+			'emulatePrepare' => false,
+			'username' => '<USER>',
+			'password' => '<PASS>',
+			'charset' => 'utf8',
+			'class' => 'CDbConnection',  
+		),
+	
+	
+	My model file:
+	
+		class testModel extends MultiActiveRecord {
+		
+		    public static function model($className=__CLASS__)
+		    {
+			return parent::model($className);
+		    }
+		    
+		    // This is where it needs to be specified what table is tied with this model
+		    public function tableName()
+		    {	
+			return '<VIEW>.<TABLE>';
+		    }
+		
+		    // The attributes here need to have the same name of the table columns (with the
+		    // letter-case also).
+		    public function rules()
+		    {
+			return array(
+			    array('<ATT1>', 'numerical', 'integerOnly'=>true),
+			    array('<ATT2>, <ATT3>, ..., 'safe'),
+			    // The following rule is used by search().
+			    // Please remove those attributes that should not be searched.
+			    array('<ATT1>, <ATT2>, 'safe', 'on'=>'search'),
+			);
+		    }
+		    
+		    // The search funcion
+		    public function search()
+		    {
+			$criteria=new CDbCriteria;
+			$criteria->limit = -1;
+		
+			$criteria->compare('<ATT1>',$this-><ATT1>,true);
+			$criteria->compare('<ATT2>',$this-><ATT2>,true);
+			// ...
+			
+			return new CActiveDataProvider(get_class($this), array(
+				'criteria'=>$criteria,
+				'pagination'=>false,
+			));
+		    }
+		    
+		    public function connectionId()
+		    {
+		    	// This needs to be the same name on the db declaration on main.php
+			return 'db_test';
+		    }
+		}
+	
+Testing:
+
+	On any view file  you can do:
+	
+	<?php
+	$test = new testModel;
+	$test-><ATT1> = "<TEST VALUE 1>";
+	// $test-><ATT2> = "<TEST VALUE 2>";
+	$result = $test->search();
+	
+	$result2 = $result->getData();
+	foreach ($result2 as $data)
+		echo "<br>".$data-><ATT1>;
+	?>
+	
+	It should list the result of your query successful.
+	Good Luck!
+
+Questions and Bugs:
+
+	Feel free to open bug reports on the project website:
+	https://github.com/rmanola/Db2-schema-for-Yii
